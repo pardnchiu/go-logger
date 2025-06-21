@@ -1,6 +1,6 @@
 # Go Logger (Golang)
 
-> High-performance, concurrency-safe Golang logging package with automatic rotation, multi-level log classification, and file management, featuring comprehensive error handling mechanisms.<br>
+> A Logging package for Golang with automatic rotation, multi-level log classification, and file management, featuring comprehensive error handling mechanisms.<br>
 > Primarily designed for use in `pardnchiu/go-*` packages
 
 ## Key Features
