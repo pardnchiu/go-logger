@@ -3,7 +3,10 @@
 > A Logging package for Golang with automatic rotation, multi-level log classification, and file management, featuring comprehensive error handling mechanisms.<br>
 > Primarily designed for use in `pardnchiu/go-*` packages
 
-## Key Features
+[![](https://img.shields.io/github/license/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/blob/master/LICENSE) 
+[![version](https://img.shields.io/github/v/tag/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/releases) 
+
+## Features
 
 - **Multi-level Log Classification**: Supports DEBUG, TRACE, INFO, NOTICE, WARNING, ERROR, FATAL, CRITICAL levels
 - **Automatic File Rotation**: Automatically creates backups and starts new files when file size exceeds limit
@@ -13,14 +16,14 @@
 - **Tree-structured Messages**: Multi-line messages displayed in tree structure for enhanced readability
 - **Memory Efficient**: Mutex-based safe writing, prevents data races
 
-## Quick Start
+## How to use
 
 ### Installation
 ```bash
 go get github.com/pardnchiu/go-logger
 ```
 
-### Basic Usage
+### Initialization
 ```go
 package main
 
@@ -212,7 +215,7 @@ logger.Flush() // Ensure all logs are written
 
 ## License
 
-This source code project is licensed under the [MIT](https://github.com/pardnchiu/go-logger/blob/main/LICENSE) License.
+This source code project is licensed under the [MIT](https://github.com/pardnchiu/go-logger/blob/master/LICENSE) License.
 
 ## Author
 
