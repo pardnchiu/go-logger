@@ -28,7 +28,7 @@ type Log struct {
 	MaxBackup int    `json:"max_backups,omitempty"` // 新增：最大備份檔案數量，預設 5
 }
 
-type logger struct {
+type Logger struct {
 	Config        *Log
 	DebugHandler  *log.Logger
 	OutputHandler *log.Logger

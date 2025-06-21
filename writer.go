@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func (l *logger) writeToLog(target *log.Logger, level string, filename string, messages ...string) {
+func (l *Logger) writeToLog(target *log.Logger, level string, filename string, messages ...string) {
 	level = strings.ToUpper(level)
 	isValid := map[string]bool{
 		logDebug:    true,
@@ -51,27 +51,27 @@ func (l *logger) writeToLog(target *log.Logger, level string, filename string, m
 	}
 }
 
-func (l *logger) Debug(messages ...string) {
+func (l *Logger) Debug(messages ...string) {
 	l.writeToLog(l.DebugHandler, logDebug, defaultDebugName, messages...)
 }
 
-func (l *logger) Trace(messages ...string) {
+func (l *Logger) Trace(messages ...string) {
 	l.writeToLog(l.DebugHandler, logTrace, defaultDebugName, messages...)
 }
 
-func (l *logger) Info(messages ...string) {
+func (l *Logger) Info(messages ...string) {
 	l.writeToLog(l.OutputHandler, logInfo, defaultOutputName, messages...)
 }
 
-func (l *logger) Notice(messages ...string) {
+func (l *Logger) Notice(messages ...string) {
 	l.writeToLog(l.OutputHandler, logNotice, defaultOutputName, messages...)
 }
 
-func (l *logger) Warn(messages ...string) {
+func (l *Logger) Warn(messages ...string) {
 	l.writeToLog(l.OutputHandler, logWarning, defaultOutputName, messages...)
 }
 
-func (l *logger) Error(err error, messages ...string) error {
+func (l *Logger) Error(err error, messages ...string) error {
 	if err != nil {
 		messages = append(messages, err.Error())
 	}
@@ -79,7 +79,7 @@ func (l *logger) Error(err error, messages ...string) error {
 	return fmt.Errorf("%s", strings.Join(messages, " "))
 }
 
-func (l *logger) Fatal(err error, messages ...string) error {
+func (l *Logger) Fatal(err error, messages ...string) error {
 	if err != nil {
 		messages = append(messages, err.Error())
 	}
@@ -87,7 +87,7 @@ func (l *logger) Fatal(err error, messages ...string) error {
 	return fmt.Errorf("%s", strings.Join(messages, " "))
 }
 
-func (l *logger) Critical(err error, messages ...string) error {
+func (l *Logger) Critical(err error, messages ...string) error {
 	if err != nil {
 		messages = append(messages, err.Error())
 	}
