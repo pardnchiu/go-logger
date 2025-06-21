@@ -1,4 +1,4 @@
-package logger
+package goLogger
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func New(config *Log) (*logger, error) {
+func New(config *Log) (*Logger, error) {
 	if config == nil {
 		config = &Log{
 			Path:      "./logs",
@@ -29,12 +29,15 @@ func New(config *Log) (*logger, error) {
 	if config.MaxBackup == 0 {
 		config.MaxBackup = 5
 	}
+	if config.Type == "" {
+		config.Type = "text"
+	}
 
 	if err := os.MkdirAll(config.Path, 0755); err != nil {
 		return nil, fmt.Errorf("Failed to create: %w", err)
 	}
 
-	logger := &logger{
+	logger := &Logger{
 		Config: config,
 		File:   make(map[string]*os.File),
 	}
@@ -44,10 +47,12 @@ func New(config *Log) (*logger, error) {
 		return nil, err
 	}
 
+	logger.startRotateTimer()
+
 	return logger, nil
 }
 
-func (l *logger) init(mode os.FileMode) error {
+func (l *Logger) init(mode os.FileMode) error {
 	files := []string{defaultDebugName, defaultOutputName, defaultErrorName}
 
 	for _, filename := range files {
@@ -61,7 +66,7 @@ func (l *logger) init(mode os.FileMode) error {
 	return l.initHandler()
 }
 
-func (l *logger) initHandler() error {
+func (l *Logger) initHandler() error {
 	flags := log.LstdFlags | log.Lmicroseconds
 
 	var debugWriters []io.Writer = []io.Writer{l.File[defaultDebugName]}
@@ -81,7 +86,7 @@ func (l *logger) initHandler() error {
 	return nil
 }
 
-func (l *logger) open(filename string, mode os.FileMode) (*os.File, error) {
+func (l *Logger) open(filename string, mode os.FileMode) (*os.File, error) {
 	fullPath := filepath.Join(l.Config.Path, filename)
 
 	if info, err := os.Stat(fullPath); err == nil {
@@ -102,7 +107,7 @@ func (l *logger) open(filename string, mode os.FileMode) (*os.File, error) {
 	return file, nil
 }
 
-func (l *logger) rotate(path string) error {
+func (l *Logger) rotate(path string) error {
 	timestamp := time.Now().Format("20060102_150405")
 	backupPath := fmt.Sprintf("%s.%s", path, timestamp)
 
@@ -118,7 +123,7 @@ func (l *logger) rotate(path string) error {
 	return nil
 }
 
-func (l *logger) Cleanup(path string) error {
+func (l *Logger) Cleanup(path string) error {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 
@@ -161,7 +166,29 @@ func (l *logger) Cleanup(path string) error {
 	return nil
 }
 
-func (l *logger) checkAndRotate(filename string) error {
+func (l *Logger) startRotateTimer() {
+	l.stopTimer = make(chan struct{})
+	l.timer = time.NewTimer(1 * time.Hour)
+
+	go func() {
+		for {
+			select {
+			case <-l.timer.C:
+				l.checkAndRotate(defaultDebugName)
+				l.checkAndRotate(defaultOutputName)
+				l.checkAndRotate(defaultErrorName)
+				l.timer.Reset(1 * time.Hour)
+			case <-l.stopTimer:
+				if l.timer != nil {
+					l.timer.Stop()
+				}
+				return
+			}
+		}
+	}()
+}
+
+func (l *Logger) checkAndRotate(filename string) error {
 	oldFile, isExist := l.File[filename]
 	if !isExist {
 		return fmt.Errorf("Failed to read: %s", filename)
@@ -195,7 +222,7 @@ func (l *logger) checkAndRotate(filename string) error {
 	return nil
 }
 
-func (l *logger) Close() error {
+func (l *Logger) Close() error {
 	l.Mutex.Lock()
 	defer l.Mutex.Unlock()
 
@@ -204,6 +231,11 @@ func (l *logger) Close() error {
 	}
 
 	l.IsClose = true
+
+	if l.stopTimer != nil {
+		close(l.stopTimer)
+	}
+
 	var errs []error
 
 	for filename, file := range l.File {
@@ -219,7 +251,7 @@ func (l *logger) Close() error {
 	return nil
 }
 
-func (l *logger) Flush() error {
+func (l *Logger) Flush() error {
 	l.Mutex.RLock()
 	defer l.Mutex.RUnlock()
 

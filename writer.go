@@ -1,12 +1,13 @@
-package logger
+package goLogger
 
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 )
 
-func (l *logger) writeToLog(target *log.Logger, level string, filename string, messages ...string) {
+func (l *Logger) writeToLog(target *log.Logger, level string, filename string, messages ...any) {
 	level = strings.ToUpper(level)
 	isValid := map[string]bool{
 		logDebug:    true,
@@ -30,8 +31,37 @@ func (l *logger) writeToLog(target *log.Logger, level string, filename string, m
 		return
 	}
 
-	if err := l.checkAndRotate(filename); err != nil {
-		fmt.Printf("Warning: log rotation failed: %v\n", err)
+	if l.Config.Type == "json" {
+		jsonLogger := slog.New(slog.NewJSONHandler(target.Writer(), &slog.HandlerOptions{
+			Level: slog.LevelDebug, // 確保 DEBUG 層級會被輸出
+		}))
+
+		msg := fmt.Sprintf("%v", messages[0])
+		remaining := messages[1:]
+		attrs := make([]any, len(remaining))
+		for i, m := range remaining {
+			attrs[i] = slog.String(fmt.Sprintf("msg%d", i+1), fmt.Sprintf("%v", m))
+		}
+
+		switch level {
+		case logDebug:
+			jsonLogger.Debug(msg, attrs...)
+		case logTrace:
+			jsonLogger.Info(msg, append(attrs, slog.String("level", "TRACE"))...)
+		case logInfo:
+			jsonLogger.Info(msg, attrs...)
+		case logNotice:
+			jsonLogger.Info(msg, append(attrs, slog.String("level", "NOTICE"))...)
+		case logWarning:
+			jsonLogger.Warn(msg, attrs...)
+		case logError:
+			jsonLogger.Error(msg, attrs...)
+		case logFatal:
+			jsonLogger.Error(msg, append(attrs, slog.String("level", "FATAL"))...)
+		case logCritical:
+			jsonLogger.Error(msg, append(attrs, slog.String("level", "CRITICAL"))...)
+		}
+		return
 	}
 
 	prefix := ""
@@ -51,46 +81,70 @@ func (l *logger) writeToLog(target *log.Logger, level string, filename string, m
 	}
 }
 
-func (l *logger) Debug(messages ...string) {
+func (l *Logger) Debug(messages ...any) {
 	l.writeToLog(l.DebugHandler, logDebug, defaultDebugName, messages...)
 }
 
-func (l *logger) Trace(messages ...string) {
+func (l *Logger) Trace(messages ...any) {
 	l.writeToLog(l.DebugHandler, logTrace, defaultDebugName, messages...)
 }
 
-func (l *logger) Info(messages ...string) {
+func (l *Logger) Info(messages ...any) {
 	l.writeToLog(l.OutputHandler, logInfo, defaultOutputName, messages...)
 }
 
-func (l *logger) Notice(messages ...string) {
+func (l *Logger) Notice(messages ...any) {
 	l.writeToLog(l.OutputHandler, logNotice, defaultOutputName, messages...)
 }
 
-func (l *logger) Warn(messages ...string) {
+func (l *Logger) Warn(messages ...any) {
 	l.writeToLog(l.OutputHandler, logWarning, defaultOutputName, messages...)
 }
 
-func (l *logger) Error(err error, messages ...string) error {
+func (l *Logger) WarnError(err error, messages ...any) error {
+	if err != nil {
+		messages = append(messages, err.Error())
+	}
+	l.writeToLog(l.ErrorHandler, logWarning, defaultErrorName, messages...)
+	strMessages := make([]string, len(messages))
+	for i, msg := range messages {
+		strMessages[i] = fmt.Sprintf("%v", msg)
+	}
+	return fmt.Errorf("%s", strings.Join(strMessages, " "))
+}
+
+func (l *Logger) Error(err error, messages ...any) error {
 	if err != nil {
 		messages = append(messages, err.Error())
 	}
 	l.writeToLog(l.ErrorHandler, logError, defaultErrorName, messages...)
-	return fmt.Errorf("%s", strings.Join(messages, " "))
+	strMessages := make([]string, len(messages))
+	for i, msg := range messages {
+		strMessages[i] = fmt.Sprintf("%v", msg)
+	}
+	return fmt.Errorf("%s", strings.Join(strMessages, " "))
 }
 
-func (l *logger) Fatal(err error, messages ...string) error {
+func (l *Logger) Fatal(err error, messages ...any) error {
 	if err != nil {
 		messages = append(messages, err.Error())
 	}
 	l.writeToLog(l.ErrorHandler, logFatal, defaultErrorName, messages...)
-	return fmt.Errorf("%s", strings.Join(messages, " "))
+	strMessages := make([]string, len(messages))
+	for i, msg := range messages {
+		strMessages[i] = fmt.Sprintf("%v", msg)
+	}
+	return fmt.Errorf("%s", strings.Join(strMessages, " "))
 }
 
-func (l *logger) Critical(err error, messages ...string) error {
+func (l *Logger) Critical(err error, messages ...any) error {
 	if err != nil {
 		messages = append(messages, err.Error())
 	}
 	l.writeToLog(l.ErrorHandler, logCritical, defaultErrorName, messages...)
-	return fmt.Errorf("%s", strings.Join(messages, " "))
+	strMessages := make([]string, len(messages))
+	for i, msg := range messages {
+		strMessages[i] = fmt.Sprintf("%v", msg)
+	}
+	return fmt.Errorf("%s", strings.Join(strMessages, " "))
 }
