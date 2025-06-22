@@ -1,23 +1,19 @@
 # Go Logger (Golang)
 
-> 一個專為 Golang 設計的日誌套件，具備自動輪替、多層級日誌分類和檔案管理功能，並提供完整的錯誤處理機制。<br>
-> 主要用於 `pardnchiu/go-*` 套件系列
+> 一個 Golang 日誌套件，具備自動輪替、多層級日誌分類和檔案管理功能，以及完整的錯誤處理機制。<br>
+> 主要設計用於 `pardnchiu/go-*` 套件中
 
 [![license](https://img.shields.io/github/license/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/blob/main/LICENSE) 
 [![version](https://img.shields.io/github/v/tag/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/releases) 
-[![readme](https://img.shields.io/badge/readme-English-blue)](https://github.com/pardnchiu/go-logger/blob/main/README.md) 
+[![readme](https://img.shields.io/badge/readme-中文-blue)](https://github.com/pardnchiu/go-logger/blob/main/README.zh.md) 
 
-## 功能特色
+## 三大主軸
 
-- **多層級日誌分類**：支援 DEBUG、TRACE、INFO、NOTICE、WARNING、ERROR、FATAL、CRITICAL 層級
-- **自動檔案輪替**：當檔案大小超過限制時自動建立備份並開始新檔案
-- **備份檔案管理**：自動清理過期備份，維護可設定的備份數量
-- **併發安全**：執行緒安全的日誌寫入，支援高併發環境
-- **多重輸出目標**：同時輸出至檔案和標準輸出
-- **樹狀結構訊息**：多行訊息以樹狀結構顯示，提升可讀性
-- **記憶體高效**：基於互斥鎖的安全寫入，防止資料競爭
+- **支持樹狀結構與 slog 標準化輸出**：JSON 相容 Go 標準 log/slog 套件用於結構化記錄，Text 採用樹狀結構提升人性化閱讀體驗
+- **完整多層級日誌分類**：支援 8 個層級（DEBUG、TRACE、INFO、NOTICE、WARNING、ERROR、FATAL、CRITICAL）
+- **自動檔案輪替與清理**：檔案達大小限制時自動輪替並建立備份，智慧清理過期檔案維護設定的備份數量
 
-## 使用方式
+## 使用方法
 
 ### 安裝
 ```bash
@@ -39,12 +35,13 @@ func main() {
   // 建立設定
   config := &goLogger.Log{
     Path:      "./logs",              // 日誌目錄
-    Stdout:    true,                  // 同時輸出至終端
+    Stdout:    true,                  // 同時輸出到終端
     MaxSize:   16 * 1024 * 1024,      // 16MB 檔案大小限制
     MaxBackup: 5,                     // 保留 5 個備份檔案
+    Type:      "json",                // "json" 為 slog 標準，"text" 為樹狀格式
   }
   
-  // 初始化記錄器
+  // 初始化日誌記錄器
   logger, err := goLogger.New(config)
   if err != nil {
     panic(err)
@@ -60,7 +57,7 @@ func main() {
   
   // 錯誤處理
   err = errors.New("發生錯誤")
-  logger.Error(err, "處理錯誤時的額外訊息")
+  logger.Error(err, "處理錯誤時的附加訊息")
   logger.Fatal(err, "嚴重錯誤")
   logger.Critical(err, "系統關鍵錯誤")
   
@@ -69,47 +66,79 @@ func main() {
 }
 ```
 
-### 設定詳情
+### 設定詳細說明
 
 ```go
 type Log struct {
   Path      string // 日誌檔案目錄路徑（預設：./logs）
-  Stdout    bool   // 是否輸出至標準輸出（預設：false）
-  MaxSize   int64  // 最大日誌檔案大小（位元組）（預設：16MB）
+  Stdout    bool   // 是否輸出到標準輸出（預設：false）
+  MaxSize   int64  // 日誌檔案最大大小（位元組）（預設：16MB）
   MaxBackup int    // 最大備份檔案數量（預設：5）
+  Type      string // 輸出格式："json" 為 slog 標準，"text" 為樹狀格式（預設："text"）
 }
 ```
+
+## 輸出格式
+
+### JSON 格式（slog 標準）
+當 `Type: "json"` 時，日誌以 slog 相容的結構化格式輸出：
+
+```json
+{"timestamp":"2024/01/15 14:30:25.123456","level":"INFO","message":"應用程式已啟動","data":null}
+{"timestamp":"2024/01/15 14:30:25.123457","level":"ERROR","message":"資料庫連線失敗","data":["連線逾時","5 秒後重試"]}
+```
+
+優點：
+- 與 Go 標準 `log/slog` 套件相容
+- 機器可讀的結構化日誌記錄
+- 易於與日誌聚合工具整合
+- 所有日誌層級保持一致的 JSON 架構
+
+### 文字格式（樹狀結構）
+當 `Type: "text"` 時，日誌以人類可讀的樹狀格式顯示：
+
+```
+2024/01/15 14:30:25.123456 應用程式已啟動
+2024/01/15 14:30:25.123457 [ERROR] 資料庫連線失敗
+2024/01/15 14:30:25.123457 ├── 連線逾時
+2024/01/15 14:30:25.123457 └── 5 秒後重試
+```
+
+優點：
+- 人類友善的視覺化呈現
+- 清晰的階層訊息結構
+- 提升除錯時的可讀性
 
 ## 日誌層級說明
 
 ### Debug 和 Trace
-記錄至 `debug.log`
+記錄到 `debug.log`
 ```go
 logger.Debug("變數值", "x = 10", "y = 20")
 logger.Trace("函式呼叫", "開始處理使用者請求")
 ```
 
 ### Info、Notice、Warning
-記錄至 `output.log`
+記錄到 `output.log`
 ```go
-logger.Info("應用程式啟動")           // 無前綴
-logger.Notice("設定檔重新載入")        // [NOTICE] 前綴
-logger.Warn("記憶體使用量過高")        // [WARNING] 前綴
+logger.Info("應用程式已啟動")           // 無前綴
+logger.Notice("設定檔已重新載入") // [NOTICE] 前綴
+logger.Warn("記憶體使用量過高")         // [WARNING] 前綴
 ```
 
 ### Error、Fatal、Critical
-記錄至 `error.log`
+記錄到 `error.log`
 ```go
-logger.Error(err, "重試第 3 次")       // [ERROR] 前綴
-logger.Fatal(err, "無法啟動服務")      // [FATAL] 前綴
-logger.Critical(err, "系統當機")       // [CRITICAL] 前綴
+logger.Error(err, "重試第 3 次")        // [ERROR] 前綴
+logger.Fatal(err, "無法啟動服務")   // [FATAL] 前綴
+logger.Critical(err, "系統當機")        // [CRITICAL] 前綴
 ```
 
 ## 核心功能
 
-### 記錄器管理
+### 日誌記錄器管理
 
-- **New** - 建立新記錄器實例
+- **New** - 建立新的日誌記錄器實例
   ```go
   logger, err := goLogger.New(config)
   ```
@@ -118,12 +147,12 @@ logger.Critical(err, "系統當機")       // [CRITICAL] 前綴
   - 為每個層級設定日誌處理器
   - 檢查現有檔案大小，必要時執行輪替
 
-- **Close** - 安全關閉記錄器
+- **Close** - 安全關閉日誌記錄器
   ```go
   err := logger.Close()
   ```
   - 關閉所有開啟的檔案控制代碼
-  - 標記記錄器為已關閉
+  - 標記日誌記錄器為已關閉
   - 確保無資源洩漏
 
 - **Flush** - 強制寫入快取
@@ -141,51 +170,45 @@ logger.Critical(err, "系統當機")       // [CRITICAL] 前綴
 - 備份檔案命名格式：`filename.YYYYMMDD_HHMMSS`
 
 #### 備份管理
-- 保留最新的 `MaxBackup` 備份檔案
+- 保留最新的 `MaxBackup` 個備份檔案
 - 自動刪除過期的舊備份
-- 依修改時間排序，保留最新檔案
+- 按修改時間排序，保留最新的檔案
 
-### 併發安全機制
+### 並行安全機制
 
 #### 讀寫鎖保護
 - 使用 `sync.RWMutex` 保護關鍵區段
 - 寫入操作取得寫入鎖，確保原子性
-- 讀取操作使用讀取鎖，提升併發效能
-
-## 訊息格式化
-
-### 單行訊息
-```go
-logger.Info("單一訊息")
-```
-輸出：
-```
-2024/01/15 14:30:25.123456 單一訊息
-```
-
-### 多行樹狀結構
-```go
-logger.Error(err, "主要錯誤", "詳細資訊", "額外備註")
-```
-輸出：
-```
-2024/01/15 14:30:25.123456 [ERROR] 主要錯誤
-2024/01/15 14:30:25.123456 ├── 詳細資訊
-2024/01/15 14:30:25.123456 └── 額外備註
-```
+- 讀取操作使用讀取鎖，提升並行效能
 
 ## 使用範例
 
-### 基本日誌記錄
+### JSON 格式的基本日誌記錄
 ```go
 logger, _ := goLogger.New(&goLogger.Log{
   Path:    "./logs",
   Stdout:  true,
   MaxSize: 1024 * 1024, // 1MB
+  Type:    "json",      // slog 標準格式
 })
 defer logger.Close()
 
-logger.Info("應用程式啟動")
+logger.Info("應用程式已啟動")
+logger.Debug("載入設定檔", "config.json")
+logger.Warn("記憶體使用量", "85%")
+```
+
+### 文字格式的基本日誌記錄
+```go
+logger, _ := goLogger.New(&goLogger.Log{
+  Path:    "./logs",
+  Stdout:  true,
+  MaxSize: 1024 * 1024, // 1MB
+  Type:    "text",      // 樹狀結構格式
+})
+defer logger.Close()
+
+logger.Info("應用程式已啟動")
 logger.Debug("載入設定檔", "config.json")
 logger.Warn("記憶體使用量", "85%")
 ```
@@ -198,7 +221,7 @@ if err := connectDatabase(); err != nil {
 }
 ```
 
-### 併發環境
+### 並行環境
 ```go
 var wg sync.WaitGroup
 
@@ -216,7 +239,7 @@ logger.Flush() // 確保所有日誌都已寫入
 
 ## 授權條款
 
-本原始碼專案採用 [MIT](https://github.com/pardnchiu/go-logger/blob/main/LICENSE) 授權條款。
+此原始碼專案採用 [MIT](https://github.com/pardnchiu/go-logger/blob/main/LICENSE) 授權條款。
 
 ## 作者
 

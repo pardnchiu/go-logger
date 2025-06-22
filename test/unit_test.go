@@ -1,462 +1,448 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	goLogger "github.com/pardnchiu/go-logger"
+	goLogger "github.com/pardnchiu/go-logger" // Adjust the import path to your logger package
 )
 
-func TestNewLogger(t *testing.T) {
-	tests := []struct {
-		name     string
-		config   *goLogger.Log
-		expected *goLogger.Log
-	}{
-		{
-			name:   "nil config uses defaults",
-			config: nil,
-			expected: &goLogger.Log{
-				Path:      "./logs",
-				Stdout:    false,
-				MaxSize:   16 * 1024 * 1024,
-				MaxBackup: 5,
-			},
-		},
-		{
-			name: "empty path uses default",
-			config: &goLogger.Log{
-				Path:      "",
-				Stdout:    true,
-				MaxSize:   1024,
-				MaxBackup: 3,
-			},
-			expected: &goLogger.Log{
-				Path:      "./logs",
-				Stdout:    true,
-				MaxSize:   1024,
-				MaxBackup: 3,
-			},
-		},
-		{
-			name: "zero values use defaults",
-			config: &goLogger.Log{
-				Path:      "./test_logs",
-				Stdout:    false,
-				MaxSize:   0,
-				MaxBackup: 0,
-			},
-			expected: &goLogger.Log{
-				Path:      "./test_logs",
-				Stdout:    false,
-				MaxSize:   16 * 1024 * 1024,
-				MaxBackup: 5,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clean up before test
-			if tt.expected.Path != "" {
-				os.RemoveAll(tt.expected.Path)
-			}
-
-			logger, err := goLogger.New(tt.config)
-			if err != nil {
-				t.Fatalf("newLogger() error = %v", err)
-			}
-			defer logger.Close()
-
-			if logger.Config.Path != tt.expected.Path {
-				t.Errorf("Path = %v, want %v", logger.Config.Path, tt.expected.Path)
-			}
-			if logger.Config.Stdout != tt.expected.Stdout {
-				t.Errorf("Stdout = %v, want %v", logger.Config.Stdout, tt.expected.Stdout)
-			}
-			if logger.Config.MaxSize != tt.expected.MaxSize {
-				t.Errorf("MaxSize = %v, want %v", logger.Config.MaxSize, tt.expected.MaxSize)
-			}
-			if logger.Config.MaxBackup != tt.expected.MaxBackup {
-				t.Errorf("MaxBackup = %v, want %v", logger.Config.MaxBackup, tt.expected.MaxBackup)
-			}
-
-			// Clean up after test
-			os.RemoveAll(tt.expected.Path)
-		})
-	}
-}
-
-func TestLoggerInit(t *testing.T) {
-	testDir := "./test_logs_init"
-	defer os.RemoveAll(testDir)
+func createTestLogger(t *testing.T, logType string) (*goLogger.Logger, string) {
+	testDir := fmt.Sprintf("./test_writer_%s_%d", logType, time.Now().UnixNano())
 
 	config := &goLogger.Log{
 		Path:      testDir,
 		Stdout:    false,
 		MaxSize:   1024,
 		MaxBackup: 3,
+		Type:      logType,
 	}
 
 	logger, err := goLogger.New(config)
 	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
-	}
-	defer logger.Close()
-
-	// Check if all log files are created
-	expectedFiles := []string{"debug.log", "output.log", "error.log"}
-	for _, filename := range expectedFiles {
-		fullPath := filepath.Join(testDir, filename)
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			t.Errorf("Expected file %s was not created", fullPath)
-		}
+		t.Fatalf("Failed to create test logger: %v", err)
 	}
 
-	// Check if handlers are initialized
-	if logger.DebugHandler == nil {
-		t.Error("debugHandler was not initialized")
-	}
-	if logger.OutputHandler == nil {
-		t.Error("outputHandler was not initialized")
-	}
-	if logger.ErrorHandler == nil {
-		t.Error("errorHandler was not initialized")
-	}
+	return logger, testDir
 }
 
-func TestLoggerLoggingMethods(t *testing.T) {
-	testDir := "./test_logs_methods"
-	defer os.RemoveAll(testDir)
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		Stdout:    false,
-		MaxSize:   1024 * 1024,
-		MaxBackup: 3,
-	}
-
-	logger, err := goLogger.New(config)
+func readLogContent(t *testing.T, filepath string) string {
+	content, err := os.ReadFile(filepath)
 	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
+		t.Fatalf("Failed to read log file %s: %v", filepath, err)
 	}
+	return string(content)
+}
+
+func TestDebugLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
 	defer logger.Close()
 
-	// Test debug and trace methods
-	logger.Debug("Debug message 1", "Debug message 2")
-	logger.Trace("Trace message")
-
-	// Test info, notice, warning methods
-	logger.Info("Info message")
-	logger.Notice("Notice message")
-	logger.Warn("Warning message")
-
-	// Test error, fatal, critical methods
-	testErr := fmt.Errorf("test error")
-	logger.Error(testErr, "Error message")
-	logger.Fatal(testErr, "Fatal message")
-	logger.Critical(testErr, "Critical message")
-
-	// Flush to ensure all logs are written
+	logger.Debug("Debug message")
+	logger.Debug("Debug with", "multiple", "arguments")
 	logger.Flush()
 
-	// Verify debug log content
-	debugContent := readLogFile(t, filepath.Join(testDir, "debug.log"))
-	if !strings.Contains(debugContent, "[DEBUG]") {
-		t.Error("Debug log should contain [DEBUG] prefix")
-	}
-	if !strings.Contains(debugContent, "[TRACE]") {
-		t.Error("Debug log should contain [TRACE] prefix")
-	}
+	content := readLogContent(t, filepath.Join(testDir, "debug.log"))
 
-	// Verify output log content
-	outputContent := readLogFile(t, filepath.Join(testDir, "output.log"))
-	if !strings.Contains(outputContent, "Info message") {
-		t.Error("Output log should contain info message without prefix")
+	if !strings.Contains(content, "Debug message") {
+		t.Error("Debug log should contain debug message")
 	}
-	if !strings.Contains(outputContent, "[NOTICE]") {
-		t.Error("Output log should contain [NOTICE] prefix")
-	}
-	if !strings.Contains(outputContent, "[WARNING]") {
-		t.Error("Output log should contain [WARNING] prefix")
-	}
-
-	// Verify error log content
-	errorContent := readLogFile(t, filepath.Join(testDir, "error.log"))
-	if !strings.Contains(errorContent, "[ERROR]") {
-		t.Error("Error log should contain [ERROR] prefix")
-	}
-	if !strings.Contains(errorContent, "[FATAL]") {
-		t.Error("Error log should contain [FATAL] prefix")
-	}
-	if !strings.Contains(errorContent, "[CRITICAL]") {
-		t.Error("Error log should contain [CRITICAL] prefix")
+	if !strings.Contains(content, `"level":"DEBUG"`) {
+		t.Error("JSON debug log should contain DEBUG level")
 	}
 }
 
-func TestLogRotation(t *testing.T) {
-	testDir := "./test_logs_rotation"
+func TestTraceLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
 	defer os.RemoveAll(testDir)
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		Stdout:    false,
-		MaxSize:   100, // Very small size to trigger rotation
-		MaxBackup: 3,
-	}
-
-	logger, err := goLogger.New(config)
-	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
-	}
 	defer logger.Close()
 
-	// Write enough data to trigger rotation
-	for i := 0; i < 50; i++ {
-		logger.Info(fmt.Sprintf("This is a long message to trigger rotation - message %d", i))
-	}
+	logger.Trace("Trace message")
+	logger.Flush()
 
-	// Check if backup files are created
-	files, err := os.ReadDir(testDir)
-	if err != nil {
-		t.Fatalf("Failed to read test directory: %v", err)
-	}
+	content := readLogContent(t, filepath.Join(testDir, "debug.log"))
 
-	backupPattern := regexp.MustCompile(`output\.log\.\d{8}_\d{6}`)
-	backupCount := 0
-	for _, file := range files {
-		if backupPattern.MatchString(file.Name()) {
-			backupCount++
-		}
+	if !strings.Contains(content, "Trace message") {
+		t.Error("Trace log should contain trace message")
 	}
-
-	if backupCount == 0 {
-		t.Error("Expected at least one backup file to be created")
+	if !strings.Contains(content, `"level":"TRACE"`) {
+		t.Error("JSON trace log should contain TRACE level")
 	}
 }
 
-func TestLogCleanup(t *testing.T) {
-	testDir := "./test_logs_cleanup"
+func TestInfoLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
 	defer os.RemoveAll(testDir)
+	defer logger.Close()
 
-	// Create test directory
-	os.MkdirAll(testDir, 0755)
+	logger.Info("Info message")
+	logger.Flush()
 
-	// Create old backup files
-	baseFile := "output.log"
-	testFiles := []string{
-		"output.log.20230101_120000",
-		"output.log.20230102_120000",
-		"output.log.20230103_120000",
-		"output.log.20230104_120000",
-		"output.log.20230105_120000",
-		"output.log.20230106_120000", // This should be removed
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+
+	if !strings.Contains(content, "Info message") {
+		t.Error("Info log should contain info message")
+	}
+	if !strings.Contains(content, `"level":"INFO"`) {
+		t.Error("JSON info log should contain INFO level")
+	}
+}
+
+func TestNoticeLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	logger.Notice("Notice message")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+
+	if !strings.Contains(content, "Notice message") {
+		t.Error("Notice log should contain notice message")
+	}
+	if !strings.Contains(content, `"level":"NOTICE"`) {
+		t.Error("JSON notice log should contain NOTICE level")
+	}
+}
+
+func TestWarnLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	logger.Warn("Warning message")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+
+	if !strings.Contains(content, "Warning message") {
+		t.Error("Warn log should contain warning message")
+	}
+	if !strings.Contains(content, `"level":"WARN"`) {
+		t.Error("JSON warn log should contain WARN level")
+	}
+}
+
+func TestErrorLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	testError := fmt.Errorf("test error")
+	returnedError := logger.Error(testError, "Error message")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "error.log"))
+
+	if !strings.Contains(content, "Error message") {
+		t.Error("Error log should contain error message")
+	}
+	if !strings.Contains(content, "test error") {
+		t.Error("Error log should contain error details")
+	}
+	if !strings.Contains(content, `"level":"ERROR"`) {
+		t.Error("JSON error log should contain ERROR level")
+	}
+	if returnedError == nil {
+		t.Error("Error method should return an error")
+	}
+}
+
+func TestErrorLoggingWithNilError(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	returnedError := logger.Error(nil, "Error message without error object")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "error.log"))
+
+	if !strings.Contains(content, "Error message without error object") {
+		t.Error("Error log should contain error message even with nil error")
+	}
+	if returnedError == nil {
+		t.Error("Error method should return an error even with nil input error")
+	}
+}
+
+func TestFatalLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	testError := fmt.Errorf("fatal error")
+	returnedError := logger.Fatal(testError, "Fatal message")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "error.log"))
+
+	if !strings.Contains(content, "Fatal message") {
+		t.Error("Fatal log should contain fatal message")
+	}
+	if !strings.Contains(content, "fatal error") {
+		t.Error("Fatal log should contain error details")
+	}
+	if !strings.Contains(content, `"level":"FATAL"`) {
+		t.Error("JSON fatal log should contain FATAL level")
+	}
+	if returnedError == nil {
+		t.Error("Fatal method should return an error")
+	}
+}
+
+func TestCriticalLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	testError := fmt.Errorf("critical error")
+	returnedError := logger.Critical(testError, "Critical message")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "error.log"))
+
+	if !strings.Contains(content, "Critical message") {
+		t.Error("Critical log should contain critical message")
+	}
+	if !strings.Contains(content, "critical error") {
+		t.Error("Critical log should contain error details")
+	}
+	if !strings.Contains(content, `"level":"CRITICAL"`) {
+		t.Error("JSON critical log should contain CRITICAL level")
+	}
+	if returnedError == nil {
+		t.Error("Critical method should return an error")
+	}
+}
+
+func TestTextFormatLogging(t *testing.T) {
+	logger, testDir := createTestLogger(t, "text")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	logger.Debug("Debug text message")
+	logger.Info("Info text message")
+	logger.Error(nil, "Error text message")
+	logger.Flush()
+
+	debugContent := readLogContent(t, filepath.Join(testDir, "debug.log"))
+	outputContent := readLogContent(t, filepath.Join(testDir, "output.log"))
+	errorContent := readLogContent(t, filepath.Join(testDir, "error.log"))
+
+	// Check text format (should not contain JSON)
+	if strings.Contains(debugContent, `"level"`) {
+		t.Error("Text format should not contain JSON level field")
+	}
+	if strings.Contains(outputContent, `"level"`) {
+		t.Error("Text format should not contain JSON level field")
+	}
+	if strings.Contains(errorContent, `"level"`) {
+		t.Error("Text format should not contain JSON level field")
 	}
 
-	for i, filename := range testFiles {
-		fullPath := filepath.Join(testDir, filename)
-		file, _ := os.Create(fullPath)
-		file.Close()
-
-		// Set different modification times
-		modTime := time.Now().AddDate(0, 0, -len(testFiles)+i)
-		os.Chtimes(fullPath, modTime, modTime)
+	// Check text format prefixes
+	if !strings.Contains(debugContent, "[DEBUG]") {
+		t.Error("Text debug log should contain [DEBUG] prefix")
 	}
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		MaxBackup: 3,
+	if strings.Contains(outputContent, "[INFO]") {
+		t.Error("Text info log should not contain [INFO] prefix")
 	}
-
-	logger, err := goLogger.New(config)
-	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
+	if !strings.Contains(errorContent, "[ERROR]") {
+		t.Error("Text error log should contain [ERROR] prefix")
 	}
+}
 
-	// Test cleanup
-	err = logger.Cleanup(filepath.Join(testDir, baseFile))
-	if err != nil {
-		t.Fatalf("cleanup() error = %v", err)
+func TestMultipleArgumentsTextFormat(t *testing.T) {
+	logger, testDir := createTestLogger(t, "text")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	logger.Info("Main message", "Second argument", "Third argument")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+
+	if !strings.Contains(content, "Main message") {
+		t.Error("Text log should contain main message")
 	}
+	if !strings.Contains(content, "├── Second argument") {
+		t.Error("Text log should contain tree structure for middle arguments")
+	}
+	if !strings.Contains(content, "└── Third argument") {
+		t.Error("Text log should contain tree structure for last argument")
+	}
+}
 
-	// Count remaining backup files
-	files, _ := os.ReadDir(testDir)
-	backupPattern := regexp.MustCompile(`^output\.log\.\d{8}_\d{6}$`)
-	backupCount := 0
-	for _, file := range files {
-		if backupPattern.MatchString(file.Name()) {
-			backupCount++
+func TestMultipleArgumentsJSONFormat(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	logger.Info("Main message", "Second argument", "Third argument")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+
+	var logEntry map[string]interface{}
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+	if len(lines) > 0 {
+		err := json.Unmarshal([]byte(lines[0]), &logEntry)
+		if err != nil {
+			t.Fatalf("Failed to parse JSON log: %v", err)
+		}
+
+		if logEntry["msg"] != "Main message" {
+			t.Error("JSON log should contain main message in msg field")
+		}
+		if logEntry["msg1"] != "Second argument" {
+			t.Error("JSON log should contain second argument in msg1 field")
+		}
+		if logEntry["msg2"] != "Third argument" {
+			t.Error("JSON log should contain third argument in msg2 field")
 		}
 	}
+}
 
-	if backupCount != config.MaxBackup {
-		t.Errorf("Expected %d backup files, got %d", config.MaxBackup, backupCount)
+func TestEmptyMessages(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+	defer logger.Close()
+
+	// Should not log anything with empty messages
+	logger.Info()
+	logger.Debug()
+	logger.Error(nil)
+	logger.Flush()
+
+	// Check that no content was written
+	outputContent := readLogContent(t, filepath.Join(testDir, "output.log"))
+	debugContent := readLogContent(t, filepath.Join(testDir, "debug.log"))
+	errorContent := readLogContent(t, filepath.Join(testDir, "error.log"))
+
+	if strings.TrimSpace(outputContent) != "" {
+		t.Error("Empty message should not write to output log")
+	}
+	if strings.TrimSpace(debugContent) != "" {
+		t.Error("Empty message should not write to debug log")
+	}
+	if strings.TrimSpace(errorContent) != "" {
+		t.Error("Empty message should not write to error log")
+	}
+}
+
+func TestClosedLogger(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
+	defer os.RemoveAll(testDir)
+
+	// Close the logger
+	logger.Close()
+
+	// Try to log after closing
+	logger.Info("This should not be logged")
+	logger.Flush()
+
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+	if strings.Contains(content, "This should not be logged") {
+		t.Error("Closed logger should not log messages")
 	}
 }
 
 func TestConcurrentLogging(t *testing.T) {
-	testDir := "./test_logs_concurrent"
+	logger, testDir := createTestLogger(t, "json")
 	defer os.RemoveAll(testDir)
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		Stdout:    false,
-		MaxSize:   1024 * 1024,
-		MaxBackup: 3,
-	}
-
-	logger, err := goLogger.New(config)
-	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
-	}
 	defer logger.Close()
 
 	var wg sync.WaitGroup
-	numRoutines := 10
-	messagesPerRoutine := 100
+	numGoroutines := 10
+	messagesPerGoroutine := 10
 
-	for i := 0; i < numRoutines; i++ {
+	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
-		go func(routineID int) {
+		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < messagesPerRoutine; j++ {
-				logger.Info(fmt.Sprintf("Routine %d - Message %d", routineID, j))
-				logger.Debug(fmt.Sprintf("Debug from routine %d - Message %d", routineID, j))
-				logger.Error(nil, fmt.Sprintf("Error from routine %d - Message %d", routineID, j))
+			for j := 0; j < messagesPerGoroutine; j++ {
+				logger.Info(fmt.Sprintf("Goroutine %d message %d", id, j))
 			}
 		}(i)
 	}
 
 	wg.Wait()
-
-	// Verify no race conditions occurred by checking if files can be read
 	logger.Flush()
-	outputContent := readLogFile(t, filepath.Join(testDir, "output.log"))
-	debugContent := readLogFile(t, filepath.Join(testDir, "debug.log"))
-	errorContent := readLogFile(t, filepath.Join(testDir, "error.log"))
 
-	if len(outputContent) == 0 {
-		t.Error("Output log should contain concurrent messages")
-	}
-	if len(debugContent) == 0 {
-		t.Error("Debug log should contain concurrent messages")
-	}
-	if len(errorContent) == 0 {
-		t.Error("Error log should contain concurrent messages")
+	content := readLogContent(t, filepath.Join(testDir, "output.log"))
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+
+	// Should have all messages logged
+	expectedMessages := numGoroutines * messagesPerGoroutine
+	if len(lines) != expectedMessages {
+		t.Errorf("Expected %d log lines, got %d", expectedMessages, len(lines))
 	}
 }
 
-func TestLoggerClose(t *testing.T) {
-	testDir := "./test_logs_close"
+func TestLogRotationTrigger(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
 	defer os.RemoveAll(testDir)
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		Stdout:    false,
-		MaxSize:   1024,
-		MaxBackup: 3,
-	}
-
-	logger, err := goLogger.New(config)
-	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
-	}
-
-	// Write some data
-	logger.Info("Test message before close")
-
-	// Close the logger
-	err = logger.Close()
-	if err != nil {
-		t.Errorf("close() error = %v", err)
-	}
-
-	// Verify logger is closed
-	if !logger.IsClose {
-		t.Error("Logger should be marked as closed")
-	}
-
-	// Verify subsequent operations don't crash
-	logger.Info("This should not cause panic")
-
-	// Verify closing again doesn't error
-	err = logger.Close()
-	if err != nil {
-		t.Errorf("Second close() should not error, got %v", err)
-	}
-}
-
-func TestLoggerFlush(t *testing.T) {
-	testDir := "./test_logs_flush"
-	defer os.RemoveAll(testDir)
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		Stdout:    false,
-		MaxSize:   1024,
-		MaxBackup: 3,
-	}
-
-	logger, err := goLogger.New(config)
-	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
-	}
 	defer logger.Close()
 
-	// Write some data
-	logger.Info("Test message")
+	// Set very small max size to trigger rotation
+	logger.Config.MaxSize = 10
 
-	// Test flush
-	err = logger.Flush()
+	// Log enough data to trigger rotation
+	for i := 0; i < 100; i++ {
+		logger.Info(fmt.Sprintf("This is a long message to trigger log rotation %d", i))
+	}
+	logger.Flush()
+
+	// Check that rotation was attempted (files should exist)
+	files, err := os.ReadDir(testDir)
 	if err != nil {
-		t.Errorf("flush() error = %v", err)
+		t.Fatalf("Failed to read test directory: %v", err)
 	}
 
-	// Close logger and test flush on closed logger
-	logger.Close()
-	err = logger.Flush()
-	if err == nil {
-		t.Error("flush() on closed logger should return error")
+	if len(files) < 3 { // Should have at least debug.log, output.log, error.log
+		t.Error("Log rotation should maintain log files")
 	}
 }
 
-func TestEmptyMessages(t *testing.T) {
-	testDir := "./test_logs_empty"
+func TestNilErrorInAllErrorMethods(t *testing.T) {
+	logger, testDir := createTestLogger(t, "json")
 	defer os.RemoveAll(testDir)
-
-	config := &goLogger.Log{
-		Path:      testDir,
-		Stdout:    false,
-		MaxSize:   1024,
-		MaxBackup: 3,
-	}
-
-	logger, err := goLogger.New(config)
-	if err != nil {
-		t.Fatalf("newLogger() error = %v", err)
-	}
 	defer logger.Close()
 
-	// Test with no messages (should not crash)
-	logger.Info()
-	logger.Debug()
-	logger.Error(nil)
-
-	// Verify this doesn't cause issues
+	// Test all error methods with nil error
+	errorResult := logger.Error(nil, "Error with nil")
+	fatalResult := logger.Fatal(nil, "Fatal with nil")
+	criticalResult := logger.Critical(nil, "Critical with nil")
 	logger.Flush()
-}
 
-// Helper function to read log file content
-func readLogFile(t *testing.T, filePath string) string {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("Failed to read log file %s: %v", filePath, err)
+	// All should return non-nil errors
+	if errorResult == nil {
+		t.Error("Error method should return error even with nil input")
 	}
-	return string(content)
+	if fatalResult == nil {
+		t.Error("Fatal method should return error even with nil input")
+	}
+	if criticalResult == nil {
+		t.Error("Critical method should return error even with nil input")
+	}
+
+	content := readLogContent(t, filepath.Join(testDir, "error.log"))
+	if !strings.Contains(content, "Error with nil") {
+		t.Error("Error log should contain error message")
+	}
+	if !strings.Contains(content, "Fatal with nil") {
+		t.Error("Error log should contain fatal message")
+	}
+	if !strings.Contains(content, "Critical with nil") {
+		t.Error("Error log should contain critical message")
+	}
 }

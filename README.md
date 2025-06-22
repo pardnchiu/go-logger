@@ -7,15 +7,11 @@
 [![version](https://img.shields.io/github/v/tag/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/releases) 
 [![readme](https://img.shields.io/badge/readme-中文-blue)](https://github.com/pardnchiu/go-logger/blob/main/README.zh.md) 
 
-## Features
+## Three Key Features
 
-- **Multi-level Log Classification**: Supports DEBUG, TRACE, INFO, NOTICE, WARNING, ERROR, FATAL, CRITICAL levels
-- **Automatic File Rotation**: Automatically creates backups and starts new files when file size exceeds limit
-- **Backup File Management**: Automatically cleans expired backups, maintains configurable backup count
-- **Concurrency Safe**: Thread-safe log writing, supports high-concurrency environments
-- **Multiple Output Targets**: Simultaneous output to files and standard output
-- **Tree-structured Messages**: Multi-line messages displayed in tree structure for enhanced readability
-- **Memory Efficient**: Mutex-based safe writing, prevents data races
+- **Tree Structure & slog Standardized Output Support**: JSON format compatible with Go's standard log/slog package for structured logging, Text format uses tree structure to enhance human-readable experience
+- **Complete Multi-level Log Classification**: Supports 8 levels (DEBUG, TRACE, INFO, NOTICE, WARNING, ERROR, FATAL, CRITICAL)
+- **Automatic File Rotation & Cleanup**: Automatically rotates and creates backups when file size reaches limit, intelligently cleans expired files to maintain configured backup count
 
 ## How to use
 
@@ -42,6 +38,7 @@ func main() {
     Stdout:    true,                  // Output to terminal as well
     MaxSize:   16 * 1024 * 1024,      // 16MB file size limit
     MaxBackup: 5,                     // Keep 5 backup files
+    Type:      "json",                // "json" for slog standard, "text" for tree format
   }
   
   // Initialize logger
@@ -60,6 +57,7 @@ func main() {
   
   // Error handling
   err = errors.New("An error occurred")
+  logger.WarnError(err, "Warning message")
   logger.Error(err, "Additional message when handling error")
   logger.Fatal(err, "Critical error")
   logger.Critical(err, "System critical error")
@@ -77,8 +75,40 @@ type Log struct {
   Stdout    bool   // Whether to output to standard output (default: false)
   MaxSize   int64  // Maximum log file size in bytes (default: 16MB)
   MaxBackup int    // Maximum number of backup files (default: 5)
+  Type      string // Output format: "json" for slog standard, "text" for tree format (default: "text")
 }
 ```
+
+## Output Formats
+
+### JSON Format (slog Standard)
+When `Type: "json"`, logs are output in slog-compatible structured format:
+
+```json
+{"timestamp":"2024/01/15 14:30:25.123456","level":"INFO","message":"Application started","data":null}
+{"timestamp":"2024/01/15 14:30:25.123457","level":"ERROR","message":"Database connection failed","data":["Connection timeout","Retrying in 5 seconds"]}
+```
+
+Benefits:
+- Compatible with Go's standard `log/slog` package
+- Machine-readable structured logging
+- Easy integration with log aggregation tools
+- Consistent JSON schema across all log levels
+
+### Text Format (Tree Structure)
+When `Type: "text"`, logs are displayed in human-readable tree format:
+
+```
+2024/01/15 14:30:25.123456 Application started
+2024/01/15 14:30:25.123457 [ERROR] Database connection failed
+2024/01/15 14:30:25.123457 ├── Connection timeout
+2024/01/15 14:30:25.123457 └── Retrying in 5 seconds
+```
+
+Benefits:
+- Human-friendly visual representation
+- Clear hierarchical message structure
+- Enhanced readability for debugging
 
 ## Log Level Description
 
@@ -152,36 +182,30 @@ logger.Critical(err, "System crash")        // [CRITICAL] prefix
 - Write operations acquire write lock, ensuring atomicity
 - Read operations use read lock, improving concurrent performance
 
-## Message Formatting
-
-### Single Line Message
-```go
-logger.Info("Single message")
-```
-Output:
-```
-2024/01/15 14:30:25.123456 Single message
-```
-
-### Multi-line Tree Structure
-```go
-logger.Error(err, "Main error", "Detailed information", "Additional notes")
-```
-Output:
-```
-2024/01/15 14:30:25.123456 [ERROR] Main error
-2024/01/15 14:30:25.123456 ├── Detailed information
-2024/01/15 14:30:25.123456 └── Additional notes
-```
-
 ## Usage Examples
 
-### Basic Logging
+### Basic Logging with JSON Format
 ```go
 logger, _ := goLogger.New(&goLogger.Log{
   Path:    "./logs",
   Stdout:  true,
   MaxSize: 1024 * 1024, // 1MB
+  Type:    "json",      // slog standard format
+})
+defer logger.Close()
+
+logger.Info("Application started")
+logger.Debug("Loading configuration file", "config.json")
+logger.Warn("Memory usage", "85%")
+```
+
+### Basic Logging with Text Format
+```go
+logger, _ := goLogger.New(&goLogger.Log{
+  Path:    "./logs",
+  Stdout:  true,
+  MaxSize: 1024 * 1024, // 1MB
+  Type:    "text",      // Tree structure format
 })
 defer logger.Close()
 

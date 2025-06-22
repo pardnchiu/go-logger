@@ -29,6 +29,9 @@ func New(config *Log) (*Logger, error) {
 	if config.MaxBackup == 0 {
 		config.MaxBackup = 5
 	}
+	if config.Type == "" {
+		config.Type = "text"
+	}
 
 	if err := os.MkdirAll(config.Path, 0755); err != nil {
 		return nil, fmt.Errorf("Failed to create: %w", err)
@@ -43,6 +46,8 @@ func New(config *Log) (*Logger, error) {
 		logger.Close()
 		return nil, err
 	}
+
+	logger.startRotateTimer()
 
 	return logger, nil
 }
@@ -161,6 +166,28 @@ func (l *Logger) Cleanup(path string) error {
 	return nil
 }
 
+func (l *Logger) startRotateTimer() {
+	l.stopTimer = make(chan struct{})
+	l.timer = time.NewTimer(1 * time.Hour)
+
+	go func() {
+		for {
+			select {
+			case <-l.timer.C:
+				l.checkAndRotate(defaultDebugName)
+				l.checkAndRotate(defaultOutputName)
+				l.checkAndRotate(defaultErrorName)
+				l.timer.Reset(1 * time.Hour)
+			case <-l.stopTimer:
+				if l.timer != nil {
+					l.timer.Stop()
+				}
+				return
+			}
+		}
+	}()
+}
+
 func (l *Logger) checkAndRotate(filename string) error {
 	oldFile, isExist := l.File[filename]
 	if !isExist {
@@ -204,6 +231,11 @@ func (l *Logger) Close() error {
 	}
 
 	l.IsClose = true
+
+	if l.stopTimer != nil {
+		close(l.stopTimer)
+	}
+
 	var errs []error
 
 	for filename, file := range l.File {
