@@ -9,7 +9,7 @@
 
 ## 三大主軸
 
-- **支持樹狀結構與 slog 標準化輸出**：JSON 相容 Go 標準 log/slog 套件用於結構化記錄，Text 採用樹狀結構提升人性化閱讀體驗
+- **支持樹狀結構與 slog 標準化輸出**：JSON 相容 Go 標準 log/slog 套件用於結構化記錄，Text 採用樹狀結構提升閱讀體驗
 - **完整多層級日誌分類**：支援 8 個層級（DEBUG、TRACE、INFO、NOTICE、WARNING、ERROR、FATAL、CRITICAL）
 - **自動檔案輪替與清理**：檔案達大小限制時自動輪替並建立備份，智慧清理過期檔案維護設定的備份數量
 

@@ -9,7 +9,7 @@
 
 ## Three Key Features
 
-- **Tree Structure & slog Standardized Output Support**: JSON format compatible with Go's standard log/slog package for structured logging, Text format uses tree structure to enhance human-readable experience
+- **Tree Structure & slog Standardized Output Support**: JSON format compatible with Go's standard log/slog package for structured logging, Text format uses tree structure to enhance readable experience
 - **Complete Multi-level Log Classification**: Supports 8 levels (DEBUG, TRACE, INFO, NOTICE, WARNING, ERROR, FATAL, CRITICAL)
 - **Automatic File Rotation & Cleanup**: Automatically rotates and creates backups when file size reaches limit, intelligently cleans expired files to maintain configured backup count
 
