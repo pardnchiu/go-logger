@@ -6,9 +6,9 @@
 > A Golang logging package with automatic rotation, multi-level log classification, file management capabilities, and comprehensive error handling mechanisms.<br>
 > Primarily designed for use in `pardnchiu/go-*` packages
 
-[![license](https://img.shields.io/github/license/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/blob/main/LICENSE) 
+[![license](https://img.shields.io/github/license/pardnchiu/go-logger)](LICENSE) 
 [![version](https://img.shields.io/github/v/tag/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/releases) 
-[![readme](https://img.shields.io/badge/readme-中文-blue)](https://github.com/pardnchiu/go-logger/blob/main/README.zh.md) 
+[![readme](https://img.shields.io/badge/readme-中文-blue)](README.zh.md) 
 
 ## Three Core Features
 

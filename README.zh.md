@@ -3,9 +3,9 @@
 > 一個 Golang 日誌套件，具備自動輪替、多層級日誌分類和檔案管理功能，以及完整的錯誤處理機制。<br>
 > 主要設計用於 `pardnchiu/go-*` 套件中
 
-[![license](https://img.shields.io/github/license/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/blob/main/LICENSE) 
+[![license](https://img.shields.io/github/license/pardnchiu/go-logger)](LICENSE) 
 [![version](https://img.shields.io/github/v/tag/pardnchiu/go-logger)](https://github.com/pardnchiu/go-logger/releases) 
-[![readme](https://img.shields.io/badge/readme-中文-blue)](https://github.com/pardnchiu/go-logger/blob/main/README.zh.md) 
+[![readme](https://img.shields.io/badge/readme-English-blue)](README.md) 
 
 ## 三大主軸
 
