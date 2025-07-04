@@ -37,7 +37,7 @@ import (
   "fmt"
   "errors"
   
-  goLogger "github.com/pardnchiu/go-logger"
+  "github.com/pardnchiu/go-logger"
 )
 
 func main() {

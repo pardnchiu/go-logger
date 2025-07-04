@@ -3,7 +3,7 @@
  * this file is created by github copilot
  * to test the cron package
  */
- 
+
 package main
 
 import (
@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	goLogger "github.com/pardnchiu/go-logger" // Adjust the import path to your logger package
+	"github.com/pardnchiu/go-logger" // Adjust the import path to your logger package
 )
 
 func createTestLogger(t *testing.T, logType string) (*goLogger.Logger, string) {
